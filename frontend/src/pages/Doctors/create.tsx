@@ -33,6 +33,23 @@ const DoctorCreate: React.FC = () => {
   const params = useParams<{ doctor_id: string }>();
 
   const [activeTab, setActiveTab] = useState(1);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const [missingDoctorData, setMissingDoctorData] = useState(false); // Estado para aviso na aba "Agenda"
+
+  // Objeto de mapeamento para traduzir os erros de validação
+  const errorMessages: Record<string, string> = {
+    name: 'Nome é obrigatório.',
+    crm: 'CRM é obrigatório.',
+    phone: 'Telefone é obrigatório.',
+    email: 'E-mail é obrigatório.',
+    password: 'Senha é obrigatória.',
+    specialityId: 'Especialidade é obrigatória.',
+    weekday: 'Dia da semana é obrigatório.',
+    startTime: 'Hora de início é obrigatória.',
+    endTime: 'Hora de término é obrigatória.',
+  };
+
 
   const initialFormData1 = {
     name: '',
@@ -61,6 +78,7 @@ const DoctorCreate: React.FC = () => {
 
   const [specialities, setSpecialities] = useState<Speciality[]>([]);
   const [doctorSchedules, setDoctorSchedules] = useState<DoctorSchedule[]>([]);
+  const [currentDoctorId, setCurrentDoctorId] = useState<string | null>(params.doctor_id || null);
 
   const handleTabChange = (tabNumber: number) => {
     setActiveTab(tabNumber);
@@ -68,7 +86,15 @@ const DoctorCreate: React.FC = () => {
 
   const timeField = useField({});
 
-
+  const diasSemana: Record<string, string> = {
+    sunday: 'Domingo',
+    monday: 'Segunda-feira',
+    tuesday: 'Terça-feira',
+    wednesday: 'Quarta-feira',
+    thursday: 'Quinta-feira',
+    friday: 'Sexta-feira',
+    saturday: 'Sábado',
+  };
 
   useEffect(() => {
     (async () => {
@@ -77,32 +103,35 @@ const DoctorCreate: React.FC = () => {
       console.log(doctor_id);
       if (doctor_id) {
         const response = await api.get(`/doctors/${doctor_id}`);
-        const convertedCrm = String(response.data.crm);
-
         setFormData1(response.data)
 
         const doctorSchedules_ = await api.get<DoctorSchedule[]>('/doctor-schedules/' + doctor_id);
         setDoctorSchedules(doctorSchedules_.data);
       }
-
       const specialities_ = await api.get<Speciality[]>('/specialities');
-
-      
-
       setSpecialities(specialities_.data);
-
-      
-
     }
     )();
   }
     , []);
 
-
+  useEffect(() => {
+    (async () => {
+      if (currentDoctorId) {
+        const response = await api.get(`/doctors/${currentDoctorId}`);
+        setFormData1({ ...response.data, password: '' });
+        const schedules = await api.get<DoctorSchedule[]>(`/doctor-schedules/${currentDoctorId}`);
+        setDoctorSchedules(schedules.data);
+      }
+      const specialities_ = await api.get<Speciality[]>('/specialities');
+      setSpecialities(specialities_.data);
+    })();
+  }, [currentDoctorId]);
 
   const resetErrors = () => {
     setErrors({});
     setCreationError('');
+    setMissingDoctorData(false);
   };
 
 
@@ -121,70 +150,97 @@ const DoctorCreate: React.FC = () => {
   );
 
   
-  
+  const deleteSchedule = async (scheduleId: number) => {
+    if (!window.confirm('Deseja realmente excluir este horário?')) {
+      return;
+    }
+    try {
+      await api.delete(`/doctor-schedules/${scheduleId}`);
+      setDoctorSchedules(prev => prev.filter(schedule => schedule.id !== scheduleId));
+    } catch (error) {
+      console.error('Erro ao excluir horário:', error);
+    }
+  };
 
   const handleSubmit = useCallback(
     async (event) => {
       try {
         event.preventDefault();
-
         resetErrors();
-        console.log(formData1);
-
-        const req = await api.post<Doctor>(
-          '/doctors',
-          {
-            doctorId: params.doctor_id,
-            time: timeField.value,
-            ...formData1
-          },
-        );
-
-        console.log(formData2);
-        // verificar se os campos do formdata2 estão preenchidos
-        if (formData2.weekday && formData2.startTime && formData2.endTime) {
-          console.log("formData2");
-          const req2 = await api.post<DoctorSchedule>(
-            '/doctor-schedules',
-            {
-              doctorId: req.data.id,
-              time: timeField.value,
-              ...formData2
-            },
-          );
+        
+        if (!formData1.name || !formData1.crm || !formData1.phone || !formData1.email || !formData1.specialityId || (!currentDoctorId && !formData1.password) ) {
+          setMissingDoctorData(true);
+          throw new Error('missing_doctor_data');
         }
 
-        
+        let doctor_id = params.doctor_id || currentDoctorId;
 
+        // Cadastra o médico
+        const response  = await api.post<Doctor>('/doctors', {
+          doctorId: doctor_id,
+          time: timeField.value,
+          ...formData1
+        });
+
+        // Atualize o ID do médico após a criação
+        if (!currentDoctorId) {
+          setCurrentDoctorId(response.data.id.toString());
+        }
+
+        let newSchedule = null;
+
+        // Se os dados da agenda estiverem preenchidos, cadastra o horário
+        if (formData2.weekday && formData2.startTime && formData2.endTime) {
+          const req2 = await api.post<DoctorSchedule>('/doctor-schedules', {
+            doctorId: currentDoctorId || response.data.id,
+            time: timeField.value,
+            ...formData2
+          });
+
+          newSchedule = req2.data;
+        }
+
+        setSuccessMessage(currentDoctorId ? 'Médico atualizado com sucesso!' : 'Médico cadastrado com sucesso!');
+
+        // Atualizar a lista de agendas
+        if (newSchedule) {
+          setDoctorSchedules(prev => [...prev, newSchedule]);
+        }
+
+        // if (newSchedule) {
+        //   setDoctorSchedules((prevSchedules) => [...prevSchedules, newSchedule]);
+        // }
+        
+        // if (!params.doctor_id) {
+        //   setFormData1(initialFormData1);
+        //   setFormData2(initialFormData2);
+        // }
       } catch (err: any) {
-        if (err.response && err.response.status === 409) {
-          const { detail } = err.response.data;
-          setCreationError(detail);
-        } 
-        else if (err.response && err.response.status === 400) {
+        if (err.message === 'missing_doctor_data') {
+          setCreationError('Atenção! Dados do médico não preenchidos.');
+        } else if (err.response && err.response.status === 400) {
           const { data } = err.response;
           const errors_: Errors = {};
           for (const key in data) {
-            errors_[key] = data[key][0];
+            errors_[key] = errorMessages[key] || 'Campo obrigatório.';
           }
-          erros = errors_;
-        }
-
-        else {
-          setCreationError('Não foi possível marcar a consulta.');
+          setErrors(errors_);
+        } else {
+          setCreationError('Não foi possível cadastrar o médico.');
         }
       }
-
-      setErrors(erros);
-
     },
-    [formData1, formData2, timeField]
+    [formData1, formData2, currentDoctorId, timeField]
   );
+
 
   const renderForm = () => {
     if (activeTab === 1) {
       return (
         <>
+          {missingDoctorData && (
+            <ErrorMessage>Atenção! Dados do médico não preenchidos.</ErrorMessage>
+          )}
           <Input
             type="text"
             name="name"
@@ -193,8 +249,6 @@ const DoctorCreate: React.FC = () => {
             value={formData1.name}
             onChange={handleInputChange}
           />
-        {errors.name && <ErrorMessage>{errors.name}</ErrorMessage>}
-
           <Input
             type="number"
             name="crm"
@@ -203,7 +257,6 @@ const DoctorCreate: React.FC = () => {
             value={formData1.crm}
             onChange={handleInputChange}
           />
-          {errors.crm && <ErrorMessage>{errors.crm}</ErrorMessage>}
           <Input
             type="number"
             name="phone"
@@ -212,7 +265,6 @@ const DoctorCreate: React.FC = () => {
             value={formData1.phone}
             onChange={handleInputChange}
           />
-          {errors.phone && <ErrorMessage>{errors.phone}</ErrorMessage>}
           <Input
             type="text"
             name="email"
@@ -221,7 +273,6 @@ const DoctorCreate: React.FC = () => {
             value={formData1.email}
             onChange={handleInputChange}
           />
-          {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
           <Input
             type="text"
             name="password"
@@ -229,7 +280,6 @@ const DoctorCreate: React.FC = () => {
             style={{ marginBottom: '10px' }}
             onChange={handleInputChange}
           />
-          {errors.email && <ErrorMessage>{errors.password}</ErrorMessage>}
           <Select
             name="specialityId"
             placeholder="Especialidade"
@@ -244,12 +294,14 @@ const DoctorCreate: React.FC = () => {
               </option>
             ))}
           </Select>
-          {errors.specialityId && <ErrorMessage>{errors.specialityId}</ErrorMessage>}
         </>
       );
     } else {
       return (
         <>
+          {missingDoctorData && (
+            <ErrorMessage>Atenção! Dados do médico não preenchidos.</ErrorMessage>
+          )}
           <Select
             name="weekday"
             placeholder="Dia da semana"
@@ -292,7 +344,7 @@ const DoctorCreate: React.FC = () => {
       <Navbar />
       <Box>
         <BoxHeader>
-          <Title>Cadastrar Médico</Title>
+          <Title>{currentDoctorId ? 'Editar Médico' : 'Cadastrar Médico'}</Title>
         </BoxHeader>
 
         <div>
@@ -304,40 +356,75 @@ const DoctorCreate: React.FC = () => {
           {renderForm()}
           <Button type="submit">
             {/* Cadastrar */}
-            {params.doctor_id ? 'Editar' : 'Cadastrar'}
+            {currentDoctorId  ? 'Salvar' : 'Cadastrar'}
           </Button>
         </Form>
 
-        {activeTab === 2 && 
-          <table>
-            <thead>
-              <tr>
-                <th>Dia</th>
-                <th>Horário</th>
-                <th></th>
-              </tr>
+         {/* Exibe mensagem de erro de criação, se houver */}
+        {creationError && <ErrorMessage>{creationError}</ErrorMessage>}
 
-              
-            </thead>
-            <tbody>
-              {doctorSchedules.length > 0 ? (
-                doctorSchedules.map(schedule => (
-                  <tr key={schedule.id}>
-                    <td>{schedule.weekday}</td>
-                    <td>{schedule.startTime} - {schedule.endTime}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td align="center" colSpan={5}>
-                    Nenhum medico até o momento
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          
-          }
+        {/* Exibe mensagem de sucesso, se houver */}
+        {successMessage && <div style={{ color: 'green', marginTop: '10px' }}>{successMessage}</div>}
+
+{activeTab === 2 && (
+  <table>
+    <thead>
+      <tr>
+        <th>Dia</th>
+        <th style={{ textAlign: 'center' }}>Horários</th>
+      </tr>
+    </thead>
+    <tbody>
+      {doctorSchedules.length > 0 ? (
+        Object.entries(
+          doctorSchedules.reduce<Record<string, { id: number; timeRange: string }[]>>((acc, schedule) => {
+            const day = diasSemana[schedule.weekday] || schedule.weekday;
+            const formattedStartTime = schedule.startTime.padStart(2, '0') + ":00";
+            const formattedEndTime = schedule.endTime.padStart(2, '0') + ":00";
+            const timeRange = `${formattedStartTime} - ${formattedEndTime}`;
+            
+            if (!acc[day]) {
+              acc[day] = [];
+            }
+            acc[day].push({ id: schedule.id, timeRange });
+
+            return acc;
+          }, {})
+        ).map(([day, schedules]) => (
+          <tr key={day}>
+            <td>{day}</td>
+            <td>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                {schedules.map(s => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span 
+                      style={{
+                        fontSize: '12px',
+                        color: 'red',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                      onClick={() => deleteSchedule(s.id)}
+                    >
+                      ✖
+                    </span>
+                    {s.timeRange}
+                  </div>
+                ))}
+              </div>
+            </td>
+          </tr>
+        ))
+      ) : (
+        <tr>
+          <td align="center" colSpan={3}>Nenhum horário cadastrado</td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+)}
+
+
       </Box>
     </Container>
   );

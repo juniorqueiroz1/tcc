@@ -19,7 +19,7 @@ const Routes: React.FC = () => {
       <PrivateRoute path="/doctors/create" component={DoctorsCreate} />
       <PrivateRoute path="/doctors/edit/:doctor_id" component={DoctorsCreate} />
       <PrivateRoute path="/doctors" component={Doctors} />
-      <PrivateRoute path="/anamneses" component={Anamnese} />
+      <PrivateRoute path="/anamneses/:appointment_id" component={Anamnese} />
       <PrivateRoute path="/specialist" component={Specialist} />
       
     </Switch>

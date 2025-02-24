@@ -106,3 +106,30 @@ export const inputGroup: React.CSSProperties = {
   flexDirection: 'row',
   gap: '10px',
 };
+
+export const Pagination = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+
+  button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    margin: 0 5px;
+    cursor: pointer;
+    border-radius: 5px;
+    
+    &:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  }
+
+  span {
+    margin: 0 10px;
+    font-weight: bold;
+  }
+`;

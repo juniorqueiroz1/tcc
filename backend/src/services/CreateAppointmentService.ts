@@ -1,6 +1,7 @@
 import { ServiceError } from '../errors/apiErrors';
 import Appointment from '../models/Appointment';
 import Schedule from '../models/Schedule';
+import ScheduleTime from '../models/ScheduleTime';
 interface Request {
   userId: number;
   time: string;
@@ -20,16 +21,25 @@ class CreateAppointmentService {
     //   throw new ServiceError('Agenda não encontrada.');
     // }
 
+    const [year, month, day] = date.split('-').map(Number);
+    const localDate = new Date(Date.UTC(year, month - 1, day)); // Usa UTC direto
+
     // create schedule
     const schedule = await Schedule.create({
-      date,
+      date: localDate,  
       doctorId: doctor,
     });
 
     await schedule.save();
 
+    const scheduleTime = await ScheduleTime.create({
+      time,
+      isAvailable: false,
+      scheduleId: schedule.id,
+    });
 
-    console.log('schedule', schedule);
+    await scheduleTime.save();
+
 
     const appointmentOnSameDate = await Appointment.findOneByUserAndDate(
       userId,

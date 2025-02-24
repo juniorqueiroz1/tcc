@@ -1,15 +1,13 @@
 {
   "type": "postgres",
-  "host": "db-postgresql-nyc3-51604-do-user-10916719-0.c.db.ondigitalocean.com",
-  "port": 25060,
-  "username": "doadmin",
-  "password": "AVNS_PQH3KEfTn8gKszZCGK_",
-  "database": "defaultdb",
+  "host": "localhost",
+  "port": 5432,
+  "username": "medicar_user",
+  "password": "senha",
+  "database": "medicar",
   "synchronize": true,
   "logging": false,
-  "ssl": {
-    "rejectUnauthorized": false
-  },
+  "ssl": false,
   "entities": [
     "./src/models/*.ts"
   ],

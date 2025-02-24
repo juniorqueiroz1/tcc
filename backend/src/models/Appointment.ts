@@ -8,10 +8,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   SelectQueryBuilder,
   UpdateDateColumn,
 } from 'typeorm';
+import Anamnesis from './Anamnesis';
 import Doctor from './Doctor';
 import Schedule from './Schedule';
 import User from './User';
@@ -25,7 +27,6 @@ class Appointment extends BaseEntity {
   @Column({ name: 'user_id' })
   userId: number;
 
-  @Exclude()
   @ManyToOne(() => User)
   @JoinColumn({ name: 'user_id' })
   user: User;
@@ -60,15 +61,19 @@ class Appointment extends BaseEntity {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt: Date;
 
+  @OneToMany(() => Anamnesis, (anamnesis) => anamnesis.appointment, {
+    cascade: true,
+  })
+  anamneses: Anamnesis[];
 
   @Expose()
-  public get date(): Date {
-    return this.schedule.date;
+  public get date(): Date | null {
+    return this.schedule ? this.schedule.date : null;
   }
 
   @Expose()
-  public get doctor(): Doctor {
-    return this.schedule.doctor;
+  public get doctor(): Doctor | null {
+    return this.schedule ? this.schedule.doctor : null;
   }
 
   static findOneByUserAndDate(
@@ -84,27 +89,55 @@ class Appointment extends BaseEntity {
       .getOne();
   }
 
-  static findAvailablesByUser(userId: number, filter: any): Promise<Appointment[]> {
-    let query = this.getAvailblesQuery()
-      .andWhere('appointment.user_id = :userId', { userId });
+  static findAvailablesByUser(userId: number, filter: any, isDoctor: boolean): Promise<Appointment[]> {
+      let query = this.getAvailablesQuery();
+      console.log('filter', filter);
+      if (isDoctor) {
+          // Filtra apenas as consultas associadas ao médico logado
+          query = query.andWhere('schedule.doctor_id = :doctorId', { doctorId: userId });
+          console.log('filter', filter.patient);
+          if(filter.patient && filter.patient !== '') {
+            query = query.andWhere('appointment.user_id = :userId', { userId: filter.patient });
+          }
+      } else {
+          // Filtra apenas as consultas associadas ao paciente logado
+          query = query.andWhere('appointment.user_id = :userId', { userId });
+      }
 
-   
-    if (filter.doctor && filter.doctor != '') {
-      query = query.andWhere('doctor.id = :doctorId', { doctorId: filter.doctor });
-    }
+      // Filtro opcional por médico
+      if (filter.doctor && filter.doctor !== '') {
+          query = query.andWhere('schedule.doctor_id = :doctorId', { doctorId: filter.doctor });
+      }
 
-    if (filter.specialispecialitytyId && filter.speciality != '') {
-      query = query.andWhere('doctor.speciality_id = :specialityId', { specialityId: filter.speciality });
-    }
+      // Filtro opcional por especialidade
+      if (filter.specialityId && filter.specialityId !== '') {
+          query = query.innerJoin('doctor.speciality', 'speciality')
+                      .andWhere('speciality.id = :specialityId', { specialityId: filter.specialityId });
+      }
 
-    if (filter.date_start && filter.date_start != '' && filter.date_end && filter.date_end != '') {
-      query = query.andWhere('schedule.date between :date_start and :date_end', { date_start: filter.date_start, date_end: filter.date_end });
-    }
-      // .andWhere('doctor.speciality_id = :specialityId', { specialityId: filter.specialityId })
-      //.andWhere('schedule.date = :date', { date: filter.date })
-      //.andWhere('appointment.time like :time', { time: `%${filter.time}%` })
-    
-    return query.getMany();
+      // Filtro por intervalo de datas
+      if (filter.date_start && filter.date_start !== '' && filter.date_end && filter.date_end !== '') {
+          query = query.andWhere('schedule.date BETWEEN :date_start AND :date_end', {
+              date_start: filter.date_start,
+              date_end: filter.date_end,
+          });
+      }
+
+      return query.getMany();
+  }
+
+  static getAvailablesQuery(): SelectQueryBuilder<Appointment> {
+    return this.createQueryBuilder('appointment')
+        .innerJoinAndSelect('appointment.user', 'user')
+        .innerJoinAndSelect('appointment.schedule', 'schedule')
+        .innerJoinAndSelect('schedule.doctor', 'doctor')
+        .leftJoinAndSelect('doctor.speciality', 'speciality') // Adicionado LEFT JOIN
+        .where('appointment.deleted_at IS NULL') // Evita registros excluídos
+        .orderBy({
+            'schedule.date': 'ASC',
+            'appointment.time': 'ASC',
+            'appointment.createdAt': 'DESC',
+        });
   }
 
   static findOneAvailableByUserAndId(

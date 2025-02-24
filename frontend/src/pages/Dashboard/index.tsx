@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FaPlus, FaTimes } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaPlus, FaTimes } from 'react-icons/fa';
 import Modal from 'react-modal';
 import { useHistory } from "react-router-dom";
 import Button from '../../components/Button';
@@ -13,7 +13,7 @@ import Doctor from '../../models/Doctor';
 import Speciality from '../../models/Speciality';
 import User from '../../models/User';
 import api from '../../services/api';
-import { Box, BoxHeader, Container, ModalStyle, TextModal, buttonStyles, filterContainer, inputGroup } from './styles';
+import { Box, BoxHeader, Container, ModalStyle, Pagination, TextModal, buttonStyles, filterContainer, inputGroup } from './styles';
 
 Modal.setAppElement('#root');
 
@@ -38,6 +38,7 @@ const Dashboard: React.FC = () => {
   const history = useHistory();
 
   const [filter, setFilter] = useState({
+    id: '',
     speciality: '',
     doctor: '',
     date_start: new Date().toISOString().slice(0, 10),
@@ -46,6 +47,12 @@ const Dashboard: React.FC = () => {
   });
 
   const [isDoctor, setIsDoctor] = useState(false);
+
+  // Estados para paginação
+  const [page, setPage] = useState(1);
+  const limit = 5; // Número de consultas por página
+  const totalPages = Math.ceil(appointments.length / limit);
+  const dataPaginated = appointments.slice((page - 1) * limit, page * limit);
 
   useEffect(() => {
     (async () => {
@@ -118,8 +125,8 @@ const Dashboard: React.FC = () => {
     [appointments, closeModal],
   );
 
-  const createAnamnese = useCallback(() => {
-    history.push("/anamneses");
+  const createAnamnese = useCallback((appointmentId) => {
+    history.push("/anamneses/" + appointmentId);
   }, [history]);
 
 
@@ -211,26 +218,38 @@ const Dashboard: React.FC = () => {
           <div style={inputGroup}>
 
             {isDoctor ? (
+                <div style={{ width: '175px' }}>
+                <label>Paciente</label>
                 <SelectInput
                   style={{ width: '175px' }}
-                  options={patients.map(patient => ({ label: patient.name, value: patient.id }))}
+                  options={[
+                  { label: 'Selecione um paciente', value: '' }, // Opção padrão
+                    ...patients.map(patient => ({ label: patient.name, value: patient.id }))
+                  ]}
                   onChange={handleInputChange}
                   name='patient'
                 />
+                </div>
             ) : (
               <>
-                <SelectInput
-                  style={{ width: '175px' }}
-                  options={specialities.map(speciality => ({ label: speciality.name, value: speciality.id }))}
-                  onChange={handleInputChange}
-                  name='speciality'
-                />
-                <SelectInput
-                  style={{ width: '175px' }}
-                  options={doctors.map(doctor => ({ label: doctor.name, value: doctor.id }))}
-                  onChange={handleInputChange}
-                  name='doctor'
-                />
+                <div>
+                  <label>Especialidade</label>
+                  <SelectInput
+                    style={{ width: '175px' }}
+                    options={specialities.map(speciality => ({ label: speciality.name, value: speciality.id }))}
+                    onChange={handleInputChange}
+                    name='speciality'
+                  />
+                </div>
+                <div>
+                  <label>Profissional</label>
+                  <SelectInput
+                    style={{ width: '175px' }}
+                    options={doctors.map(doctor => ({ label: doctor.name, value: doctor.id }))}
+                    onChange={handleInputChange}
+                    name='doctor'
+                  />
+                </div>
               </>
             )}
 
@@ -238,49 +257,70 @@ const Dashboard: React.FC = () => {
             
           </div>
           <div style={inputGroup}>
-            <Input
-              style={{ maxWidth: '110px' }}
-              type="date"
-              placeholder="Data"
-              onChange={handleInputChange}
-              name='date_start'
-            />
-            <Input
-              type="date"
-              placeholder="Data"
-              onChange={handleInputChange}
-              name='date_end'
-            />
+            <div>
+              <label>Data</label>
+              <Input
+                style={{ maxWidth: '110px' }}
+                type="date"
+                placeholder="Data"
+                onChange={handleInputChange}
+                name='date_start'
+              />
+            </div>
+            <div>
+              <span style={{ margin: '0 10px' }}>até</span>
+              <Input
+                type="date"
+                placeholder="Data"
+                onChange={handleInputChange}
+                name='date_end'
+              />
+            </div>
           </div>
         </div>
 
-        <table>
+        <table style={{ marginTop: '25px' }}>
           <thead>
             <tr>
-              <th>Especialidade</th>
-              <th>Profissional</th>
+              {isDoctor ? (
+                <th>Paciente</th>
+              ) : (
+                <>
+                  <th>Especialidade</th>
+                  <th>Profissional</th>
+                </>
+              )}
               <th>Data</th>
               <th>Hora</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {appointments.length > 0 ? (
-              appointments.map(appointment => (
+            {dataPaginated.length > 0 ? (
+              dataPaginated.map(appointment => (
                 <tr key={appointment.id}>
-                  <td>{appointment.doctor.speciality.name}</td>
-                  <td>{appointment.doctor.name}</td>
-                  <td>{new Date(appointment.date).toLocaleDateString()}</td>
+                  {isDoctor ? (
+                    <td>{appointment.user.name}</td>
+                  ) : (
+                    <>
+                      <td>{appointment.doctor.speciality.name}</td>
+                      <td>{appointment.doctor.name}</td>
+                    </>
+                  )}
+                  <td>{new Date(appointment.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</td>
                   <td>{appointment.time}</td>
                   <td>
-                    <Button type="button" style={{ width: '150px' }} size="small" onClick={() => openNewModal(appointment)}>
-                      <FaPlus />
-                      Obs.
-                    </Button>
-                    <Button type="button" style={{ width: '150px', marginTop: '5px' }} size="small" onClick={createAnamnese}>
-                      <FaPlus />
-                      Nova Anamnese
-                    </Button>
+                    {isDoctor && (
+                      <Button 
+                        type="button" 
+                        style={{ width: '150px', marginTop: '5px' }} 
+                        size="small" 
+                        onClick={() => createAnamnese(appointment.id)}
+                      >
+                        <FaPlus />
+                        Nova Anamnese
+                      </Button>
+                    )}
                     <Button
                       style={{ marginTop: '5px', width: '150px' }}
                       type="button"
@@ -297,13 +337,26 @@ const Dashboard: React.FC = () => {
               ))
             ) : (
               <tr>
-                <td align="center" colSpan={5}>
+                <td align="center" colSpan={isDoctor ? 4 : 5}>
                   Nenhuma consulta marcada até o momento
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+         {/* Paginação */}
+        {totalPages > 1 && (
+          <Pagination>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)}>
+              <FaChevronLeft /> Anterior
+            </button>
+            <span>Página {page} de {totalPages}</span>
+            <button disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+              Próxima <FaChevronRight />
+            </button>
+          </Pagination>
+        )}
       </Box>
 
       <Modal
@@ -313,6 +366,7 @@ const Dashboard: React.FC = () => {
         style={ModalStyle}
       >
         <CreateAppointmentForm
+          isDoctor={isDoctor}
           onCreateSuccess={handleNewAppointment}
           onCancel={closeModal}
         />

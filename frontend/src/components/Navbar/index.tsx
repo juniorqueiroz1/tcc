@@ -29,7 +29,6 @@ const Navbar: React.FC = () => {
       if (storedUserString) {
         try {
           let storedUser = JSON.parse(storedUserString);
-          console.log(storedUser);
           if (storedUser && storedUser.crm) {
             setIsDoctor(true);
           }

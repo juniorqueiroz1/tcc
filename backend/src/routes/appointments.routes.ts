@@ -1,29 +1,36 @@
 import { classToPlain } from 'class-transformer';
 import { Router } from 'express';
-import CreateAppointmentDto from '../dtos/CreateAppointmentDto';
 import { NotFound } from '../errors/apiErrors';
 import Appointment from '../models/Appointment';
 import CancelAppointmentService from '../services/CancelAppointmentService';
 import CreateAppointmentService from '../services/CreateAppointmentService';
-import { transformAndValidate } from '../utils';
 
 const appointmentsRouter = Router();
 
 appointmentsRouter.get('/', async (request, response) => {
-  console.log('request.user.id', request.user.id);
   const userId = request.user.id;
-  const appointments = await Appointment.findAvailablesByUser(userId, request.query);
-
+  const isDoctor = Boolean(request.user.crm);
+  const appointments = await Appointment.findAvailablesByUser(userId, request.query, isDoctor);
+  
   return response.json(classToPlain(appointments));
 });
 
 appointmentsRouter.post('/', async (request, response) => {
-  const userId = request.user.id;
-  const { date, time, doctor } = await transformAndValidate(
-    CreateAppointmentDto,
-    request.body,
-  );
+  let userId, doctor;
 
+  if (request.user.crm) {
+    doctor = request.user.id;
+    userId = request.body.patient;
+  } else {
+    userId = request.user.id;
+    doctor = request.body.doctor;
+  }
+
+  if (!request.body.date || !request.body.time) {
+    return response.status(400).json({ error: "Date and time are required." });
+  }
+
+  const { date, time } = request.body;
   const appointmentService = new CreateAppointmentService();
   const appointment = await appointmentService.execute({
     userId,
@@ -52,13 +59,17 @@ appointmentsRouter.delete('/:id', async (request, response) => {
 });
 
 appointmentsRouter.post('/obs/:id', async (request, response) => {
-  const id = request.params.id
+  const { id } = request.params;
   const userId = request.user.id;
 
   const appointment = await Appointment.findOneAvailableByUserAndId(userId, id);
 
   if (!appointment) {
     throw new NotFound();
+  }
+
+  if (!request.body.content) {
+    return response.status(400).json({ error: "Observation content is required." });
   }
 
   appointment.observation = request.body.content;

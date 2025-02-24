@@ -61,7 +61,7 @@ class CreateScheduleService {
     const timeInstances = times.map(time => {
       return ScheduleTime.create({
         time,
-        isAvaialble: true,
+        isAvailable: true,
         scheduleId: schedule.id,
       });
     });

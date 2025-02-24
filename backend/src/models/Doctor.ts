@@ -78,6 +78,7 @@ class Doctor extends BaseEntity {
   }
 
   public async setPassword(password: string): Promise<void> {
+    console.log('password', password);
     this.password = await hash(password, authConfig.salt);
   }
 }

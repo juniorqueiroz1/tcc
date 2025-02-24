@@ -17,7 +17,7 @@ class ScheduleTime extends BaseEntity {
   time: string;
 
   @Column({ name: 'is_available' })
-  isAvaialble: boolean;
+  isAvailable: boolean;
 
   @Column({ name: 'schedule_id' })
   scheduleId: number;
@@ -27,12 +27,12 @@ class ScheduleTime extends BaseEntity {
   schedule: Schedule;
 
   public async disable() {
-    this.isAvaialble = false;
+    this.isAvailable = false;
     await this.save();
   }
 
   public async enable() {
-    this.isAvaialble = true;
+    this.isAvailable = true;
     await this.save();
   }
 }

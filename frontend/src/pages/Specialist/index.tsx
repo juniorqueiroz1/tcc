@@ -1,26 +1,15 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
-import { FaPlus } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
 import Modal from 'react-modal';
 import Button from '../../components/Button';
 import CreateSpecialistForm from '../../components/CreateSpecialistForm';
 import Navbar from '../../components/Navbar';
 import Title from '../../components/Title';
-import Appointment from '../../models/Appointment';
 import Speciality from '../../models/Speciality';
 import api from '../../services/api';
 import { Box, BoxHeader, Container, ModalStyle } from './styles';
 
 Modal.setAppElement('#root');
-
-function getAppointmentDate(appointment: Appointment): Date {
-  const [hours, minutes] = appointment.time.split(':');
-  const date = new Date(appointment.date);
-
-  date.setHours(parseInt(hours));
-  date.setMinutes(parseInt(minutes));
-
-  return date;
-}
 
 interface Errors {
   [key: string]: string | undefined;
@@ -29,88 +18,83 @@ interface Errors {
 const Dashboard: React.FC = () => {
   const [specialities, setSpecialities] = useState<Speciality[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [id, setId] = useState(0);
-
   const [errors, setErrors] = useState<Errors>({});
-
-  const [formData1, setFormData1] = useState({
-    name: '',
-    description: '',
-  });
-
+  const [formData1, setFormData1] = useState({ name: '', description: '' });
   const [creationError, setCreationError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Estados para paginação
+  const [page, setPage] = useState(1);
+  const limit = 5; // Número de especialidades por página
+  const totalPages = Math.ceil(specialities.length / limit);
+  const dataPaginated = specialities.slice((page - 1) * limit, page * limit);
 
   useEffect(() => {
     (async () => {
       const response = await api.get<Speciality[]>('/specialities');
-
       setSpecialities(response.data);
     })();
   }, []);
 
-  const openModal = useCallback((id_) => {
+  // Sempre que a lista for atualizada, opcionalmente reseta para a página 1
+  useEffect(() => {
+    setPage(1);
+  }, [specialities]);
 
+  const openModal = useCallback((id_: number) => {
     (async () => {
       if (id_ !== 0) {
         setId(id_);
-
         const response = await api.get<Speciality>('/specialities/' + id_);
-
         setFormData1(response.data);
+      } else {
+        setFormData1({ name: '', description: '' });
+        setId(0);
       }
-      
-
-   
-      
-
+      setCreationError('');
+      setSuccessMessage('');
       setIsModalOpen(true);
     })();
-
-    
   }, []);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
+    setSuccessMessage('');
   }, []);
 
   const resetErrors = () => {
     setErrors({});
   };
 
-
-
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
-      event.persist();
-      try {
-        event.preventDefault();
+      event.preventDefault();
+      resetErrors();
 
-        resetErrors();
-        console.log(id);
-        
-        const req = await api.post<Speciality>(
-          '/specialities',
-          {
-            id: id,
-            ...formData1
-          },
-        );
+      try {
+        await api.post<Speciality>('/specialities', {
+          id,
+          ...formData1
+        });
 
         const response = await api.get<Speciality[]>('/specialities');
-
         setSpecialities(response.data);
-        
+
+        setSuccessMessage('Especialidade salva com sucesso!');
+
+        setTimeout(() => {
+          closeModal();
+        }, 2000); // Fechar o modal após 2 segundos
       } catch (err: any) {
         if (err.response && err.response.status === 409) {
-          const { detail } = err.response.data;
-          setCreationError(detail);
+          setCreationError(err.response.data.detail);
         } else {
           setCreationError('Não foi possível cadastrar.');
         }
       }
     },
-    [formData1]
+    [formData1, id, closeModal]
   );
 
   return (
@@ -130,16 +114,22 @@ const Dashboard: React.FC = () => {
             <tr>
               <th>Especialidade</th>
               <th>Descrição</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            {specialities.length > 0 ? (
-              specialities.map(speciality => (
+            {dataPaginated.length > 0 ? (
+              dataPaginated.map(speciality => (
                 <tr key={speciality.id}>
                   <td>{speciality.name}</td>
                   <td>{speciality.description}</td>
                   <td>
-                    <Button type="button" style={{ minWidth: '30px' }} size="small" onClick={() => openModal(speciality.id)}>
+                    <Button
+                      type="button"
+                      style={{ minWidth: '30px' }}
+                      size="small"
+                      onClick={() => openModal(speciality.id)}
+                    >
                       <FaPlus />
                       Ver mais
                     </Button>
@@ -148,13 +138,46 @@ const Dashboard: React.FC = () => {
               ))
             ) : (
               <tr>
-                <td align="center" colSpan={5}>
-                  Nenhum especista até o momento
+                <td align="center" colSpan={3}>
+                  Nenhuma especialidade até o momento
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {/* Controles de Paginação */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginTop: '20px',
+              gap: '10px'
+            }}
+          >
+            <Button
+              type="button"
+              size="small"
+              disabled={page === 1}
+              onClick={() => setPage(page - 1)}
+            >
+              <FaChevronLeft /> Anterior
+            </Button>
+            <span>
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              type="button"
+              size="small"
+              disabled={page === totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              Próxima <FaChevronRight />
+            </Button>
+          </div>
+        )}
       </Box>
 
       <Modal
@@ -170,30 +193,12 @@ const Dashboard: React.FC = () => {
           creationError={creationError}
           handleSubmit={handleSubmit}
         />
+        {successMessage && (
+          <p style={{ color: 'green', textAlign: 'center', marginTop: '10px' }}>
+            {successMessage}
+          </p>
+        )}
       </Modal>
-
-      {/* <Modal
-        isOpen={isNewModalOpen}
-        shouldCloseOnOverlayClick={true}
-        onRequestClose={closeNewModal}
-        style={TextModal}
-      >
-        <div>
-          <h2 style={{ paddingBottom: '30px' }}>Descrição da especialidade</h2>
-          <textarea
-            value={textareaContent}
-            onChange={(e) => setTextareaContent(e.target.value)}
-            placeholder="Anote aqui..."
-            style={{ width: '100%', height: '200px', marginBottom: '10px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', resize: 'none' }}
-          />
-          <BoxHeader>
-            <Button type="button" onClick={closeNewModal} style={buttonStyles}>
-              Fechar
-            </Button>
-          </BoxHeader>
-        </div>
-      </Modal> */}
-
     </Container>
   );
 };

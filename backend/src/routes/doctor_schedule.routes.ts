@@ -1,34 +1,53 @@
 import { classToPlain } from 'class-transformer';
 import { Router } from 'express';
-import CreateDoctorScheduleDto from '../dtos/CreateDoctorSchedule';
 import DoctorSchedule from '../models/DoctorSchedule';
 import CreateDoctorScheduleService from '../services/CreateDoctorScheduleService';
-import EditDoctorScheduleService from '../services/EditDoctorScheduleService';
-import { transformAndValidate } from '../utils';
+import DeleteDoctorScheduleService from '../services/DeleteDoctorScheduleService';
 
 const doctorScheduleRouter = Router();
 
 doctorScheduleRouter.post('/', async (request, response) => {
-  const dto = await transformAndValidate(
-    CreateDoctorScheduleDto,
-    request.body,
-  );
+  const { doctorId, weekday, startTime, endTime } = request.body;
 
-  const doctorSchedules = await DoctorSchedule.find({
-    where: { doctorId: dto.doctorId },
-  });
-
-  // check if doctor already has a schedule and weekday is the same
-  if (doctorSchedules.length > 0 && doctorSchedules.some((doctorSchedule) => doctorSchedule.weekday === dto.weekday)) {
-    const doctorService = new EditDoctorScheduleService(dto.doctorId);
-    const doctorEdited = await doctorService.execute(dto);
-    return response.status(201).json(classToPlain(doctorEdited));
+  if (!doctorId || !weekday || !startTime || !endTime) {
+    return response
+      .status(400)
+      .json({ error: 'doctorId, weekday, startTime e endTime são obrigatórios' });
   }
 
-  const service = new CreateDoctorScheduleService();
-  const data = await service.execute(dto);
+  // --- Validação opcional: Verificar sobreposição de intervalos ---
+  // Busca todos os intervalos do médico para o mesmo dia (weekday)
+  const schedules = await DoctorSchedule.find({ where: { doctorId, weekday } });
 
-  return response.status(201).json(classToPlain(data));
+  // Função para converter horário (string "HH:mm") em minutos
+  const convertTimeToMinutes = (time: string): number => {
+    const [hour, minute] = time.split(':').map(Number);
+    return hour * 60 + minute;
+  };
+
+  const newStart = convertTimeToMinutes(startTime);
+  const newEnd = convertTimeToMinutes(endTime);
+
+  // Verifica se o novo intervalo se sobrepõe a algum existente
+  const overlap = schedules.some(schedule => {
+    const scheduleStart = convertTimeToMinutes(schedule.startTime);
+    const scheduleEnd = convertTimeToMinutes(schedule.endTime);
+    // A condição abaixo verifica se há interseção entre os intervalos
+    return newStart < scheduleEnd && newEnd > scheduleStart;
+  });
+
+  if (overlap) {
+    return response
+      .status(400)
+      .json({ error: 'Horário se sobrepõe a um intervalo existente.' });
+  }
+  // --- Fim da validação opcional ---
+
+  // Cria um novo intervalo (agora sem editar intervalos existentes)
+  const service = new CreateDoctorScheduleService();
+  const schedule = await service.execute({ doctorId, weekday, startTime, endTime });
+
+  return response.status(201).json(classToPlain(schedule));
 });
 
 doctorScheduleRouter.get('/:id', async (request, response) => {
@@ -38,6 +57,19 @@ doctorScheduleRouter.get('/:id', async (request, response) => {
   });
 
   return response.json(classToPlain(doctorSchedules));
+});
+
+doctorScheduleRouter.delete('/:id', async (request, response) => {
+  const { id } = request.params;
+
+  try {
+    const service = new DeleteDoctorScheduleService();
+    await service.execute({ scheduleId: Number(id) });
+    // Retorna status 204 (No Content) pois a exclusão foi realizada com sucesso
+    return response.status(204).send();
+  } catch (error) {
+    return response.status(404).json({ error: error.message });
+  }
 });
 
 export default doctorScheduleRouter;

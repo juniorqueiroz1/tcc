@@ -1,8 +1,5 @@
 import { Router } from 'express';
-import CreateSpecialityDto from '../dtos/CreateSpecialityDto';
-import { NotFound } from '../errors/apiErrors';
 import Speciality from '../models/Speciality';
-import { transformAndValidate } from '../utils';
 
 const specialitiesRouter = Router();
 
@@ -14,31 +11,31 @@ specialitiesRouter.get('/', async (request, response) => {
 });
 
 specialitiesRouter.post('/', async (request, response) => {
-  let body = request.body;
-   if(!body.id){
-    body.id = 0;
+  let { id = 0, name, description } = request.body;
+
+  if (!name || !description) {
+    return response.status(400).json({ error: 'Nome e descrição são obrigatórios' });
   }
 
-  console.log(request.body);
-  const dto = await transformAndValidate(CreateSpecialityDto, request.body);
-
-  if(body.id == 0){
-    
-    const speciality = Speciality.create(dto);
+  if (id == 0) {
+    // Criar uma nova especialidade
+    const speciality = Speciality.create({ name, description });
     await speciality.save();
 
     return response.status(201).json(speciality);
-  }
-  else{
-    const speciality = await Speciality.findOne(body.id);
+  } else {
+    // Editar uma especialidade existente
+    const speciality = await Speciality.findOne(id);
     if (!speciality) {
-      throw new NotFound();
+      return response.status(404).json({ message: 'Speciality not found' });
     }
-    const specialityEdited = Object.assign(speciality, dto);
-    await specialityEdited.save();
-  }
 
-  
+    speciality.name = name;
+    speciality.description = description;
+    await speciality.save();
+
+    return response.status(200).json(speciality);
+  }
 });
 
 specialitiesRouter.delete('/:id', async (request, response) => {
@@ -47,7 +44,7 @@ specialitiesRouter.delete('/:id', async (request, response) => {
   const speciality = await Speciality.findOne(id);
 
   if (!speciality) {
-    throw new NotFound();
+    return response.status(404).json({ message: 'Speciality not found' });
   }
 
   await speciality.remove();
@@ -61,7 +58,7 @@ specialitiesRouter.get('/:id', async (request, response) => {
   const speciality = await Speciality.findOne(id);
 
   if (!speciality) {
-    throw new NotFound();
+    return response.status(404).json({ message: 'Speciality not found' });
   }
 
   return response.json(speciality);

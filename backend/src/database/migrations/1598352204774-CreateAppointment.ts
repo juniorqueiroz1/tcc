@@ -48,7 +48,6 @@ export class CreateAppointment1598352204774 implements MigrationInterface {
             name: 'observation',
             type: 'varchar',
             isNullable: true,
-            default: '',
           },
         ],
       }),

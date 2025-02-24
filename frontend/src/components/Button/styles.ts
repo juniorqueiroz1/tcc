@@ -3,7 +3,7 @@ import styled, { css, keyframes } from 'styled-components';
 import colors from '../../styles/colors';
 
 interface ButtonProps {
-  variant: 'primary' | 'secondary';
+  variant: 'primary' | 'secondary' | 'danger';
   size: 'normal' | 'small';
 }
 
@@ -52,12 +52,33 @@ const secondaryVariantStyle = css`
   }
 `;
 
+const dangerVariantStyle = css`
+  color: ${colors.white};
+  background-color: ${colors.danger};
+
+  &:hover:not(:disabled) {
+    background-color: ${colors.danger};
+  }
+
+  &:disabled {
+    background-color: ${colors.secondaryHover};
+    cursor: not-allowed;
+  }
+`;
+
 const getSizeStyle = ({ size }: ButtonProps) => {
   return size === 'normal' ? normalSizeStyle : smallSizeStyle;
 };
 
 const getVariantStyle = ({ variant }: ButtonProps) => {
-  return variant === 'primary' ? primaryVariantStyle : secondaryVariantStyle;
+  // return variant === 'primary' ? primaryVariantStyle : secondaryVariantStyle;
+  if (variant === 'primary') {
+    return primaryVariantStyle;
+  } else if (variant === 'secondary') {
+    return secondaryVariantStyle;
+  } else {
+    return dangerVariantStyle;
+  }
 };
 
 const rotate = keyframes`

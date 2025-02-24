@@ -34,10 +34,6 @@ class DoctorSchedule extends BaseEntity {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // @Exclude()
-  // @Column({ name: 'deleted_at' })
-  // deletedAt: Date;
-
 }
 
 export default DoctorSchedule;

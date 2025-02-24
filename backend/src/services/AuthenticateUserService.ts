@@ -26,14 +26,17 @@ class AuthenticateUserService {
 
     let passwordLog = '';
     let id = '';
+    let userType = '';
 
     if (userSign) {
       passwordLog = userSign.password;
       id = userSign.id.toString();
+      userType = 'user'; // Definindo o tipo de usuário como 'user'
     }
     if (doctor) {
       passwordLog = doctor.password;
       id = doctor.id.toString();
+      userType = 'doctor'; // Definindo o tipo de usuário como 'doctor'
     }
 
     const passwordMatched = await compare(password, passwordLog);
@@ -42,11 +45,15 @@ class AuthenticateUserService {
       throw new AuthenticationFailed();
     }
     
-    if (userSign)
+    if (userSign) {
       await userSign.updateLastLogin();
+    }
+
+    // Modificando o subject do token para incluir tanto o ID quanto o tipo de usuário
+    const subject = `${id}_${userType}`;
 
     const token = sign({}, authConfig.jwt.secretKey, {
-      subject: id,
+      subject, // Agora o subject será no formato 'id_user' ou 'id_doctor'
       expiresIn: '1d',
     });
 
@@ -58,5 +65,6 @@ class AuthenticateUserService {
     };
   }
 }
+
 
 export default AuthenticateUserService;

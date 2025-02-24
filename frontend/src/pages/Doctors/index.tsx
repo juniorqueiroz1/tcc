@@ -1,39 +1,41 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { FaPlus, FaTimes } from 'react-icons/fa';
-import Modal from 'react-modal';
-import { useHistory } from "react-router-dom";
+import React, { useEffect, useState } from 'react';
+import { FaChevronLeft, FaChevronRight, FaPlus, FaTimes } from 'react-icons/fa';
+import { useHistory } from 'react-router-dom';
 import Link from '../../components/Link';
 import Navbar from '../../components/Navbar';
 import Title from '../../components/Title';
 import Doctor from '../../models/Doctor';
 import api from '../../services/api';
-import { Box, BoxHeader, Button, Container } from './styles';
-
-Modal.setAppElement('#root');
+import { Box, BoxHeader, Button, Container, Pagination } from './styles';
 
 const DoctorIndex: React.FC = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [onCanceling, setOnCanceling] = useState<number[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const limit = 5; // Número de médicos por página
   const history = useHistory();
 
-
+  // Busca todos os médicos ao carregar a página
   useEffect(() => {
     (async () => {
-      const response = await api.get<Doctor[]>('/doctors');
-
-      setDoctors(response.data);
+      try {
+        const response = await api.get('/doctors'); // Pega TODOS os médicos de uma vez
+        if (response.data && Array.isArray(response.data)) {
+          setDoctors(response.data);
+        } else {
+          setDoctors([]); // Evita erro se o formato da resposta for inesperado
+        }
+      } catch (error) {
+        console.error("Erro ao buscar médicos:", error);
+        setDoctors([]);
+      }
     })();
   }, []);
 
+  // Calcula o número total de páginas
+  const totalPages = Math.ceil(doctors.length / limit);
 
-
-
-  // redirect to create file
-  const create = useCallback(() => {
-    history.push("/doctors/create");
-  }, [history]);
-
+  // Obtém os médicos da página atual
+  const doctorsPaginated = doctors.slice((page - 1) * limit, page * limit);
 
   return (
     <Container>
@@ -41,7 +43,7 @@ const DoctorIndex: React.FC = () => {
       <Box>
         <BoxHeader>
           <Title>Médicos</Title>
-          <Link onClick={create}>
+          <Link onClick={() => history.push('/doctors/create')}>
             <FaPlus />
             Novo Médico
           </Link>
@@ -54,9 +56,10 @@ const DoctorIndex: React.FC = () => {
               <th>Nome</th>
               <th></th>
             </tr>
-
-            {doctors.length > 0 ? (
-              doctors.map(doctor => (
+          </thead>
+          <tbody>
+            {doctorsPaginated.length > 0 ? (
+              doctorsPaginated.map((doctor) => (
                 <tr key={doctor.id}>
                   <td>{doctor.speciality.name}</td>
                   <td>{doctor.name}</td>
@@ -73,43 +76,26 @@ const DoctorIndex: React.FC = () => {
               ))
             ) : (
               <tr>
-                <td align="center" colSpan={5}>
-                  Nenhum medico até o momento
+                <td align="center" colSpan={3}>
+                  Nenhum médico encontrado
                 </td>
               </tr>
             )}
-          </thead>
-          <tbody>
-            {/* {appointments.length > 0 ? (
-              appointments.map(appointment => (
-                <tr key={appointment.id}>
-                  <td>{appointment.doctor.speciality.name}</td>
-                  <td>{appointment.doctor.name}</td>
-                  <td>{new Date(appointment.date).toLocaleDateString()}</td>
-                  <td>{appointment.time}</td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="small"
-                      disabled={onCancelingAppointment(appointment.id)}
-                      onClick={() => handleCancelAppointment(appointment.id)}
-                    >
-                      <FaTimes />
-                      Desmarcar
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td align="center" colSpan={5}>
-                  Nenhuma consulta marcada até o momento
-                </td>
-              </tr>
-            )} */}
           </tbody>
         </table>
+
+        {/* PAGINAÇÃO */}
+        {totalPages > 1 && (
+          <Pagination>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)}>
+              <FaChevronLeft /> Anterior
+            </button>
+            <span>Página {page} de {totalPages}</span>
+            <button disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+              Próxima <FaChevronRight />
+            </button>
+          </Pagination>
+        )}
       </Box>
     </Container>
   );

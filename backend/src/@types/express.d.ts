@@ -4,6 +4,7 @@ declare namespace Express {
       id: number;
       name: string;
       email: string;
+      crm?: string;
       isAdmin: boolean;
     };
   }

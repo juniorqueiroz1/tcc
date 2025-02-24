@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import isAuthenticated from '../middlewares/isAuthenticated';
+import anamneseRouter from './anamnesis.routes';
 import appointmentsRouter from './appointments.routes';
 import doctorScheduleRouter from './doctor_schedule.routes';
 import doctorsRouter from './doctors.routes';
@@ -18,5 +19,6 @@ routes.use('/doctors', doctorsRouter);
 routes.use('/schedules', schedulesRouter);
 routes.use('/appointments', appointmentsRouter);
 routes.use('/doctor-schedules', doctorScheduleRouter);
+routes.use('/anamnese', anamneseRouter);
 
 export default routes;
